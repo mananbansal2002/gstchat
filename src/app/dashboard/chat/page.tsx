@@ -9,13 +9,29 @@ import PdfThumb from "@/components/PdfThumb";
 
 const CACHE_KEY = "saas_chat_state";
 
-function readCache() {
-  if (typeof window === "undefined") return null;
+function cacheKeyFor(userId?: string) {
+  return userId ? `${CACHE_KEY}_${userId}` : null;
+}
+
+function readCache(userId?: string) {
+  const key = cacheKeyFor(userId);
+  if (typeof window === "undefined" || !key) return null;
   try {
-    return JSON.parse(sessionStorage.getItem(CACHE_KEY) || "null");
+    return JSON.parse(sessionStorage.getItem(key) || "null");
   } catch {
     return null;
   }
+}
+
+/** Drop every cached chat state so a freshly logged-in user never sees
+ * another account's chats (e.g. after logout on this tab). */
+function clearAllChatCaches() {
+  if (typeof window === "undefined") return;
+  try {
+    Object.keys(sessionStorage)
+      .filter((k) => k.startsWith(CACHE_KEY))
+      .forEach((k) => sessionStorage.removeItem(k));
+  } catch {}
 }
 
 export default function ChatPage() {
@@ -45,11 +61,17 @@ export default function ChatPage() {
 
   activeRef.current = activeUser;
 
+  const prevUserId = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (prevUserId.current && prevUserId.current !== user?.id) clearAllChatCaches();
+    prevUserId.current = user?.id;
+  }, [user?.id]);
+
   // Hydrate from sessionStorage only after mount (after SSR/hydration), so the
   // server-rendered HTML always matches the first client render (avoids hydration
   // mismatch errors) — then instantly shows the last-known chat state.
   useEffect(() => {
-    const cache = readCache();
+    const cache = readCache(user?.id);
     if (cache) {
       if (Array.isArray(cache.messages)) setMessages(cache.messages);
       if (Array.isArray(cache.conversations)) setConversations(cache.conversations);
@@ -61,18 +83,20 @@ export default function ChatPage() {
       msgIds.current = new Set((cache.messages || []).map((m: any) => m._id));
       setReady(true);
     }
-  }, []);
+  }, [user?.id]);
 
   // Persist chat state so switching away and coming back keeps your place,
   // showing the last known messages instantly while fresh data loads in.
   useEffect(() => {
+    const key = cacheKeyFor(user?.id);
+    if (!key) return;
     try {
       sessionStorage.setItem(
-        CACHE_KEY,
+        key,
         JSON.stringify({ messages, conversations, activeUser, nextCursor })
       );
     } catch {}
-  }, [messages, conversations, activeUser, nextCursor]);
+  }, [messages, conversations, activeUser, nextCursor, user?.id]);
 
   const shouldScroll = useRef(true);
 

@@ -5,6 +5,7 @@ import DashboardShell from "@/components/DashboardShell";
 import { Spinner } from "@/components/Loader";
 import { useAuth } from "@/components/AuthContext";
 import { api, timeAgo } from "@/lib/api";
+import { X, Send, Users } from "lucide-react";
 
 export default function AdminPage() {
   const { user } = useAuth();
@@ -14,6 +15,47 @@ export default function AdminPage() {
   const [admins, setAdmins] = useState<any[]>([]);
   const [tab, setTab] = useState<"users" | "admins">("users");
   const [loading, setLoading] = useState(true);
+  const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [search, setSearch] = useState("");
+  const [bMessage, setBMessage] = useState("");
+  const [bSending, setBSending] = useState(false);
+  const [bResult, setBResult] = useState("");
+
+  const toggleSelect = (id: string) => {
+    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  };
+
+  const toggleAll = () => {
+    setSelected((s) => (s.length === users.length ? [] : users.map((u) => u.id)));
+  };
+
+  const filteredUsers = users.filter((u) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || u.businessName?.toLowerCase().includes(q);
+  });
+
+  const sendBroadcast = async () => {
+    if (!bMessage.trim()) return;
+    setBSending(true);
+    setBResult("");
+    try {
+      const d = await api<any>("/admin/broadcast", {
+        method: "POST",
+        body: JSON.stringify({ content: bMessage, userIds: selected }),
+      });
+      setBResult(d.message);
+      setBroadcastOpen(false);
+      setBMessage("");
+      setSelected([]);
+      setSearch("");
+    } catch (err: any) {
+      setBResult("Failed: " + err.message);
+    } finally {
+      setBSending(false);
+    }
+  };
 
   const load = useCallback(() => {
     setLoading(true);
@@ -57,18 +99,25 @@ export default function AdminPage() {
         {isSuper ? "Super Admin — you can promote or remove admins." : "Admin — you can manage customers."}
       </p>
 
-      {/* Stats */}
-      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {loading
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-[76px] animate-pulse rounded-2xl bg-slate-100" />
-            ))
-          : cards.map(([label, value]: any) => (
-              <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="text-2xl font-black text-slate-900">{value}</div>
-                <div className="text-sm text-slate-500">{label}</div>
-              </div>
-            ))}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="grid flex-1 grid-cols-2 gap-4 lg:grid-cols-4">
+          {loading
+            ? Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-[76px] animate-pulse rounded-2xl bg-slate-100" />
+              ))
+            : cards.map(([label, value]: any) => (
+                <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="text-2xl font-black text-slate-900">{value}</div>
+                  <div className="text-sm text-slate-500">{label}</div>
+                </div>
+              ))}
+        </div>
+        <button
+          onClick={() => setBroadcastOpen(true)}
+          className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+        >
+          <Send className="h-4 w-4" /> Send Message
+        </button>
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -181,6 +230,92 @@ export default function AdminPage() {
           </table>
         </div>
       </div>
+
+      {/* Broadcast modal */}
+      {broadcastOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={() => setBroadcastOpen(false)}>
+          <div
+            className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+              <div className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-emerald-600" />
+                <h3 className="font-bold text-slate-900">Send Message to Customers</h3>
+              </div>
+              <button className="p-1 text-slate-400 hover:text-slate-600" onClick={() => setBroadcastOpen(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              <div className="mb-3 flex items-center gap-2">
+                <input
+                  className="input flex-1"
+                  placeholder="Search customers..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+                <button
+                  onClick={toggleAll}
+                  className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  {selected.length === users.length && users.length > 0 ? "Clear all" : "Select all"}
+                </button>
+              </div>
+
+              <div className="mb-3 max-h-56 space-y-1 overflow-y-auto rounded-xl border border-slate-100 p-2">
+                {filteredUsers.length === 0 ? (
+                  <p className="py-6 text-center text-sm text-slate-400">No customers found.</p>
+                ) : (
+                  filteredUsers.map((u: any) => (
+                    <label
+                      key={u.id}
+                      className="flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-2 hover:bg-emerald-50/60"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected.includes(u.id)}
+                        onChange={() => toggleSelect(u.id)}
+                        className="mt-0.5 h-4 w-4 accent-emerald-600"
+                      />
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold text-slate-800">{u.name}</span>
+                        <span className="block truncate text-xs text-slate-400">
+                          {u.email || ("@" + u.username)} {u.businessName ? "· " + u.businessName : ""}
+                        </span>
+                      </span>
+                    </label>
+                  ))
+                )}
+              </div>
+
+              <textarea
+                className="input min-h-24 w-full resize-none"
+                placeholder="Type your message..."
+                value={bMessage}
+                onChange={(e) => setBMessage(e.target.value)}
+              />
+            </div>
+
+            <div className="border-t border-slate-100 px-5 py-4">
+              <button
+                onClick={sendBroadcast}
+                disabled={bSending || !bMessage.trim() || selected.length === 0}
+                className="btn-primary w-full py-2.5 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {bSending ? "Sending..." : `Send to ${selected.length} customer${selected.length === 1 ? "" : "s"}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bResult && !broadcastOpen && (
+        <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          {bResult}
+        </div>
+      )}
     </DashboardShell>
   );
 }

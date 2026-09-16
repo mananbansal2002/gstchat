@@ -46,3 +46,4 @@ backend/npm-cache/
 .env*
 src/lib/api.ts.bak
 src/lib/api.ts.bak
+npm-cache/

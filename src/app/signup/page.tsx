@@ -29,8 +29,9 @@ function SignupForm() {
   const router = useRouter();
   const params = useSearchParams();
   const { login } = useAuth();
-  const [plans, setPlans] = useState([]);
+  const [plans, setPlans] = useState<any[]>([]);
   const [planId, setPlanId] = useState(params.get("plan") || "");
+  const [infoPlan, setInfoPlan] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: "",
     username: "",
@@ -55,13 +56,11 @@ function SignupForm() {
       .then((d) => {
         setPlans(d.plans);
         const preselected = params.get("plan");
-        const valid = d.plans.find((p: any) => p._id === preselected);
-        if (valid) {
-          setPlanId(valid._id);
-        } else {
-          const popular = d.plans.find((p: any) => p.popular);
-          if (popular) setPlanId(popular._id);
+        if (preselected) {
+          const valid = d.plans.find((p: any) => p._id === preselected);
+          if (valid) setPlanId(valid._id);
         }
+        // Default: no plan selected — user can choose one or proceed with Free
       })
       .catch(() => {});
   }, []);
@@ -216,26 +215,111 @@ function SignupForm() {
               Choose a Plan
             </h2>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <button
+                type="button"
+                onClick={() => setPlanId("")}
+                className={`rounded-xl border-2 border-dashed p-3 text-left transition ${
+                  !planId
+                    ? "border-emerald-600 bg-emerald-50"
+                    : "border-slate-200 bg-white hover:border-slate-300"
+                }`}
+              >
+                <div className="font-semibold text-sm">No Plan</div>
+                <div className="mt-1 text-base font-bold text-slate-900">
+                  Free
+                  <span className="text-xs font-normal text-slate-500">/ for now</span>
+                </div>
+                <div className="mt-2 text-[15px] font-extrabold leading-snug text-[var(--green)]">
+                  Try it free — add a plan anytime
+                </div>
+              </button>
               {plans.map((p: any) => (
-                <button
-                  key={p._id}
-                  type="button"
-                  onClick={() => setPlanId(p._id)}
-                  className={`relative rounded-xl border-2 p-3 text-left transition ${
-                    planId === p._id
-                      ? "border-emerald-600 bg-emerald-50"
-                      : "border-slate-200 bg-white hover:border-slate-300"
-                  }`}
-                >
-                  {p.popular && (
-                    <span className="badge bg-emerald-600 text-white absolute -top-2 right-2">Popular</span>
-                  )}
-                  <div className="font-semibold text-sm">{p.name}</div>
-                  <div className="mt-1 text-lg font-bold text-slate-900">
-                    {formatINR(p.price)}
-                    <span className="text-xs font-normal text-slate-500">/{p.billingCycle}</span>
+                <div key={p._id} className="flex flex-col">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setPlanId(p._id)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setPlanId(p._id); } }}
+                    className={`relative flex w-full cursor-pointer flex-col rounded-xl border-2 p-3.5 text-left transition ${
+                      planId === p._id
+                        ? "border-emerald-600 bg-emerald-50 ring-2 ring-emerald-600/20"
+                        : "border-slate-200 bg-white hover:border-emerald-400 hover:shadow-md"
+                    }`}
+                  >
+                    {p.popular && (
+                      <span className="badge bg-emerald-600 text-white absolute -top-2 right-2">Popular</span>
+                    )}
+                    <div className="flex items-center gap-1.5 pr-6 font-semibold text-sm">
+                      {p.name}
+                      {p.features?.length > 0 && (
+                        <button
+                          type="button"
+                          aria-label="View plan details"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setInfoPlan(infoPlan === p._id ? null : p._id);
+                          }}
+                          className={`ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-xs font-bold transition ${
+                            infoPlan === p._id
+                              ? "border-emerald-600 bg-emerald-600 text-white"
+                              : "border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
+                          }`}
+                        >
+                          {infoPlan === p._id ? "✕" : "ℹ"}
+                        </button>
+                      )}
+                    </div>
+                    <div className="mt-1 text-lg font-bold text-slate-900">
+                      {formatINR(p.price)}
+                      <span className="text-xs font-normal text-slate-500">/{p.billingCycle}</span>
+                    </div>
+                    {p.tagline && (
+                      <div className="mt-2 text-[15px] font-extrabold leading-snug text-[var(--green)]">
+                        {p.tagline}
+                      </div>
+                    )}
                   </div>
-                </button>
+
+                  {infoPlan === p._id && (
+                    <div className="mt-2 overflow-hidden rounded-xl border border-emerald-100 bg-white shadow-sm">
+                      <div className="border-b border-slate-100 bg-emerald-50 px-3 py-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-emerald-700">{p.name}</span>
+                          <span className="text-xs font-semibold text-slate-700">
+                            {formatINR(p.price)}
+                            <span className="text-[10px] text-slate-400">/{p.billingCycle}</span>
+                          </span>
+                        </div>
+                      </div>
+                      <ul className="space-y-1.5 px-3 py-3">
+                        {p.features.map((f: string, i: number) => (
+                          <li key={i} className="flex items-start gap-2 text-xs text-slate-700">
+                            <span className="mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-[10px] font-bold text-white">
+                              ✓
+                            </span>
+                            <span className="leading-snug">{f}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="px-3 pb-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPlanId(p._id);
+                            setInfoPlan(null);
+                          }}
+                          className={`w-full rounded-lg py-2 text-center text-xs font-semibold transition ${
+                            planId === p._id
+                              ? "cursor-default bg-emerald-100 text-emerald-700"
+                              : "bg-emerald-600 text-white hover:bg-emerald-700"
+                          }`}
+                        >
+                          {planId === p._id ? "Selected" : `Select ${p.name}`}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           </div>

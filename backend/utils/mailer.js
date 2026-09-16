@@ -1,32 +1,29 @@
 const nodemailer = require("nodemailer");
-const { google } = require("googleapis");
+const { Resend } = require("resend");
 
 const {
+  RESEND_API_KEY,
+  RESEND_FROM,
   SMTP_HOST,
   SMTP_PORT = "587",
   SMTP_USER,
   SMTP_PASS,
   SMTP_FROM,
   SMTP_SECURE = "false",
-  GMAIL_CLIENT_ID,
-  GMAIL_CLIENT_SECRET,
-  GMAIL_REFRESH_TOKEN,
 } = process.env;
 
-// Tier 1 — Gmail API OAuth2 (no password stored; refresh token in .env).
-let gmail = null;
-if (GMAIL_CLIENT_ID && GMAIL_CLIENT_SECRET && GMAIL_REFRESH_TOKEN) {
-  const oauth = new google.auth.OAuth2(GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET);
-  oauth.setCredentials({ refresh_token: GMAIL_REFRESH_TOKEN });
-  gmail = google.gmail({ version: "v1", auth: oauth });
-  console.log("[mailer] Gmail API enabled (OAuth2 refresh token). Real links will be delivered via premiuma754@gmail.com.");
+// Tier 1 — Resend (transactional email API, no SMTP, no ban risk).
+let resend = null;
+if (RESEND_API_KEY) {
+  resend = new Resend(RESEND_API_KEY);
+  console.log("[mailer] Resend enabled (API key present).");
 }
 
 // Tier 2 — classic SMTP.
-const configured = !!(SMTP_HOST && SMTP_USER && SMTP_PASS);
+const smtpConfigured = !!(SMTP_HOST && SMTP_USER && SMTP_PASS);
 
 let transporter = null;
-if (configured) {
+if (smtpConfigured) {
   transporter = nodemailer.createTransport({
     host: SMTP_HOST,
     port: parseInt(SMTP_PORT, 10),
@@ -36,28 +33,60 @@ if (configured) {
 }
 
 /**
- * Send an email. Falls back to logging to the console when SMTP is not set up.
- * Resolves { sent, mode, info }.
+ * Send an email. Prefers Resend, falls back to SMTP, and finally to
+ * console logging when neither is configured. Throws on failure so the
+ * caller can surface delivery errors to the user — it must never silently
+ * pretend the email was sent. Resolves { sent, mode, id }.
  */
 async function sendMail({ to, subject, html, text }) {
-  if (!transporter) {
-    console.log(`\n===== EMAIL (console mode) =====\nTo: ${to}\nSubject: ${subject}\n${html || text}\n================================\n`);
-    return { sent: false, mode: "console" };
+  if (resend) {
+    try {
+      const { data, error } = await resend.emails.send({
+        from: RESEND_FROM || "SMRIDHI <onboarding@resend.dev>",
+        to,
+        subject,
+        html: html || "",
+        text: text || "",
+      });
+      if (error) {
+        console.error("[mailer] Resend send failed:", error.message);
+        const e = new Error("Failed to deliver email: " + error.message);
+        e.emailDeliveryFailed = true;
+        e.cause = error;
+        throw e;
+      }
+      return { sent: true, mode: "resend", id: data?.id };
+    } catch (err) {
+      if (err.emailDeliveryFailed) throw err;
+      console.error("[mailer] Resend error:", err.message);
+      const e = new Error("Failed to deliver email: " + err.message);
+      e.emailDeliveryFailed = true;
+      e.cause = err;
+      throw e;
+    }
   }
-  try {
-    const info = await transporter.sendMail({
-      from: SMTP_FROM || SMTP_USER,
-      to,
-      subject,
-      html: html || text,
-      text: text || html,
-    });
-    return { sent: true, mode: "smtp", messageId: info.messageId };
-  } catch (err) {
-    console.error("[mailer]", err.message);
-    console.log(`\n===== EMAIL (send failed -> console) =====\nTo: ${to}\nSubject: ${subject}\n${html || text}\n============================================\n`);
-    return { sent: false, mode: "console", error: err.message };
+
+  if (transporter) {
+    try {
+      const info = await transporter.sendMail({
+        from: SMTP_FROM || SMTP_USER,
+        to,
+        subject,
+        html: html || text,
+        text: text || html,
+      });
+      return { sent: true, mode: "smtp", messageId: info.messageId };
+    } catch (err) {
+      console.error("[mailer] SMTP send failed:", err.message);
+      const e = new Error("Failed to deliver email: " + err.message);
+      e.emailDeliveryFailed = true;
+      e.cause = err;
+      throw e;
+    }
   }
+
+  console.log(`\n===== EMAIL (console mode) =====\nTo: ${to}\nSubject: ${subject}\n${html || text}\n================================\n`);
+  return { sent: false, mode: "console" };
 }
 
-module.exports = { sendMail, configured };
+module.exports = { sendMail, configured: !!(resend || smtpConfigured) };

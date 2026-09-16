@@ -47,7 +47,7 @@ export default function PlansPage() {
                 <span className="badge absolute -top-3 left-1/2 -translate-x-1/2 bg-emerald-600 text-white">Most Popular</span>
               )}
               <h3 className="text-lg font-bold text-slate-900">{p.name}</h3>
-              <p className="mt-1 text-sm text-slate-500">{p.description}</p>
+              <p className="mt-1.5 text-sm font-bold text-[var(--green)]">{p.description}</p>
               <div className="mt-4 flex items-baseline gap-1">
                 <span className="text-3xl font-black text-slate-900">{formatINR(p.price)}</span>
                 <span className="text-sm text-slate-400">/{p.billingCycle}</span>

@@ -8,3 +8,4 @@ uploads/
 oauth/
 token.json
 *.log
+.env*

@@ -4,11 +4,8 @@ const config = {
   //  - new users are auto-verified at registration
   //  - login works immediately (no verification screen)
   otpEnabled: String(process.env.OTP_ENABLED || "false").toLowerCase() === "true",
-  // Verification method used when otpEnabled=true: "magiclink" | "otp"
-  authMode: (process.env.AUTH_MODE || "magiclink").toLowerCase(),
-  // Where verification emails would be sent. If null, links/codes print to
-  // the backend terminal and the dev path is returned inline (for demos).
-  mailProvider: process.env.MAIL_PROVIDER || null,
+  // Frontend base URL (used to build dev-only preview paths).
+  frontendBaseUrl: process.env.FRONTEND_BASE_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000",
 };
 
 module.exports = config;

@@ -15,6 +15,20 @@ export default function DashboardShell({
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [planName, setPlanName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user?.planId) {
+      api<any>("/plans")
+        .then((d) => {
+          const p = d.plans.find((x: any) => x._id === user.planId);
+          setPlanName(p ? p.name : null);
+        })
+        .catch(() => {});
+    } else {
+      setPlanName(null);
+    }
+  }, [user?.planId]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -104,6 +118,15 @@ export default function DashboardShell({
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
+            {planName && (
+              <Link
+                href="/dashboard/plans"
+                title="Current plan"
+                className="hidden items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100 sm:flex"
+              >
+                💳 {planName}
+              </Link>
+            )}
             <span className="hidden items-center gap-2 rounded-full bg-slate-100 py-1 pl-1 pr-3 text-sm sm:flex">
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">
                 {(user.name || "U")[0]?.toUpperCase()}

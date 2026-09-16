@@ -6,8 +6,9 @@ const otpSchema = new mongoose.Schema(
     email: { type: String, required: true, lowercase: true },
     code: { type: String, required: true },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    purpose: { type: String, enum: ["verify", "login", "reset", "magiclink"], default: "verify" },
+    purpose: { type: String, enum: ["verify", "login", "reset"], default: "verify" },
     used: { type: Boolean, default: false },
+    attempts: { type: Number, default: 0 },
     expiresAt: { type: Date, required: true },
   },
   { timestamps: true }

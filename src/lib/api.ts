@@ -1,6 +1,6 @@
 "use client";
 
-export const API_URL = "https://backend-theta-ten-46.vercel.app";
+export const API_URL = "https://smaridhi-backend.vercel.app";
 
 const TOKEN_KEY = "saas_token";
 

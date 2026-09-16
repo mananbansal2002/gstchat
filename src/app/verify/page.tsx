@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { api, setToken, setStoredUser } from "@/lib/api";
+import { api } from "@/lib/api";
+import { useAuth } from "@/components/AuthContext";
 
 export default function VerifyPage() {
   return (
@@ -17,6 +18,7 @@ function VerifyForm() {
   const params = useSearchParams();
   const email = params.get("email") || "";
   const userId = params.get("userId") || "";
+  const { login } = useAuth();
 
   const [digits, setDigits] = useState<string[]>(Array(6).fill(""));
   const [error, setError] = useState("");
@@ -66,8 +68,7 @@ function VerifyForm() {
         method: "POST",
         body: JSON.stringify({ email, code, userId }),
       });
-      setToken(data.token);
-      setStoredUser(data.user);
+      login(data.token, data.user);
       router.push(data.user?.role === "admin" ? "/dashboard/admin" : "/dashboard");
     } catch (err: any) {
       setError(err.message);
@@ -80,7 +81,7 @@ function VerifyForm() {
     setError("");
     try {
       await api("/auth/send-otp", { method: "POST", body: JSON.stringify({ email }) });
-      setInfo("A new OTP has been sent. Check the terminal where the backend runs.");
+      setInfo("A new OTP has been sent to your email.");
       setCountdown(30);
     } catch (err: any) {
       setError(err.message);
@@ -113,7 +114,7 @@ function VerifyForm() {
           )}
           {process.env.NODE_ENV === "development" && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-700">
-              Dev note: In this demo the OTP is printed in the backend terminal since no email provider is wired up.
+              Dev tip: the OTP is delivered to your inbox at <b>{email}</b>.
             </div>
           )}
 

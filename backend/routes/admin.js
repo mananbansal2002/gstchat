@@ -120,6 +120,36 @@ router.post("/admins/:id/demote", requireSuperAdmin, async (req, res) => {
   }
 });
 
+// POST /api/admin/broadcast  -> send a message to the chosen customers (from this admin)
+//   body: { content, userIds: [id, ...] }  — send to specific customers
+router.post("/broadcast", async (req, res) => {
+  try {
+    const text = String(req.body.content || "").trim();
+    if (!text) return res.status(400).json({ error: "Message is required" });
+
+    const userIds = Array.isArray(req.body.userIds) ? req.body.userIds.map(String) : [];
+    const recipients =
+      userIds.length > 0
+        ? await User.find({ _id: { $in: userIds }, role: "user", isActive: true }).select("_id name")
+        : await User.find({ role: "user", isActive: true }).select("_id name");
+
+    if (!recipients.length) return res.status(400).json({ error: "No matching customers found" });
+
+    const messages = recipients.map((u) => ({
+      senderId: req.userId,
+      senderRole: req.user.role,
+      receiverId: u._id,
+      content: text,
+    }));
+    await ChatMessage.insertMany(messages);
+
+    return res.status(201).json({ message: `Message sent to ${recipients.length} customer${recipients.length > 1 ? "s" : ""}`, count: recipients.length });
+  } catch (err) {
+    console.error("[admin broadcast]", err.message);
+    return res.status(500).json({ error: "Something went wrong" });
+  }
+});
+
 // GET /api/admin/handlers  -> which users chat, quick list for messaging
 router.get("/handlers", async (req, res) => {
   try {
